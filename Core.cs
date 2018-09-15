@@ -27,6 +27,12 @@ namespace TargetLeading
             MyAPIGateway.Entities.OnEntityRemove += RemoveGrid;
         }
 
+        protected override void UnloadData()
+        {
+            MyAPIGateway.Entities.OnEntityAdd -= AddGrid;
+            MyAPIGateway.Entities.OnEntityRemove -= RemoveGrid;
+        }
+
         private void AddGrid(IMyEntity ent)
         {
             if (ent is IMyCubeGrid)
