@@ -1,4 +1,5 @@
-﻿using Sandbox.Game.Entities;
+﻿using Sandbox.Game;
+using Sandbox.Game.Entities;
 using Sandbox.Game.Weapons;
 using Sandbox.ModAPI;
 using System;
@@ -82,16 +83,42 @@ namespace TargetLeading
 
             MyAPIGateway.Utilities.ShowNotification($"Speed: {speed} Range: {range}", 1);
 
+
             foreach (IMyCubeGrid grid in Grids)
             {
-                if (grid.EntityId != turret.CubeGrid.EntityId
-                && Vector3D.DistanceSquared(grid.GetPosition(), turretLoc) < rangeSquared
-                //&& MyAPIGateway.Players.GetPlayerControllingEntity(e) != null
-                ) continue;
+                if (grid.EntityId == turret.CubeGrid.EntityId
+                || Vector3D.DistanceSquared(grid.GetPosition(), turretLoc) > rangeSquared
+                || MyAPIGateway.Players.GetPlayerControllingEntity(grid) == null
+                )
+                {
+                    RemoveGPS(grid.EntityId);
+                    continue;
+                }
 
-                if (grid.Physics == null) continue;
+                bool isSubgrid = false;
+                //List<IMyCubeGrid> list = MyAPIGateway.GridGroups.GetGroup(grid, GridLinkTypeEnum.Physical);
+                //float gridVolume = grid.PositionComp.LocalAABB.Volume();
 
-                DrawDot(grid.EntityId, grid.GetPosition());
+                //foreach (IMyCubeGrid g in list)
+                //{
+                //    if (g.PositionComp.LocalAABB.Volume() > gridVolume)
+                //    {
+                //        RemoveGPS(grid.EntityId);
+                //        isSubgrid = true;
+                //        break;
+                //    }
+                //}
+
+                if (isSubgrid || grid.Physics == null)
+                {
+                    RemoveGPS(grid.EntityId);
+                    continue;
+                }
+
+                Vector3D gridLoc = grid.PositionComp.GetPosition();
+                float t = (float)(Vector3D.Distance(turretLoc, gridLoc) / speed);
+
+                DrawDot(grid.EntityId, (gridLoc + t * grid.Physics.LinearVelocity));
             }
         }
 
@@ -99,8 +126,10 @@ namespace TargetLeading
         {
             if (!gpss.ContainsKey(gridId))
             {
-                gpss.Add(gridId, MyAPIGateway.Session.GPS.Create("", "", target, true));
+                gpss.Add(gridId, MyAPIGateway.Session.GPS.Create(gridId.ToString(), "", target, true));
                 MyAPIGateway.Session.GPS.AddLocalGps(gpss[gridId]);
+                MyVisualScriptLogicProvider.SetGPSColor(gridId.ToString(), Color.Orange);
+                gpss[gridId].Name = "";
             }
 
             gpss[gridId].Coords = target;
@@ -117,6 +146,15 @@ namespace TargetLeading
             gpss.Clear();
 
             WasInTurretLastFrame = false;
+        }
+
+        private void RemoveGPS(long id)
+        {
+            if (gpss.ContainsKey(id))
+            {
+                MyAPIGateway.Session.GPS.RemoveLocalGps(gpss[id]);
+                gpss.Remove(id);
+            }
         }
     }
 }
