@@ -24,12 +24,16 @@ namespace TargetLeading
 
         public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
         {
+            if (MyAPIGateway.Utilities.IsDedicated) return;
+
             MyAPIGateway.Entities.OnEntityAdd += AddGrid;
             MyAPIGateway.Entities.OnEntityRemove += RemoveGrid;
         }
 
         protected override void UnloadData()
         {
+            if (MyAPIGateway.Utilities.IsDedicated) return;
+
             MyAPIGateway.Entities.OnEntityAdd -= AddGrid;
             MyAPIGateway.Entities.OnEntityRemove -= RemoveGrid;
         }
