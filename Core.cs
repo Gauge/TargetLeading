@@ -71,7 +71,7 @@ namespace TargetLeading
                 return;
             }
 
-            Vector3D turretLoc = turret.GetPosition();
+            Vector3D turretLoc = turret.PositionComp.WorldAABB.Center;
             float speed = gunBase.GunBase.CurrentAmmoDefinition.DesiredSpeed;
             float range = gunBase.GunBase.CurrentAmmoDefinition.MaxTrajectory;
             float rangeSquared = range * range;
@@ -84,7 +84,8 @@ namespace TargetLeading
                 if (grid.EntityId == turret.CubeGrid.EntityId
                 || Vector3D.DistanceSquared(grid.GetPosition(), turretLoc) > rangeSquared
                 || p == null
-                || p.GetRelationTo(MyAPIGateway.Session.Player.IdentityId) != MyRelationsBetweenPlayerAndBlock.Enemies)
+                || p.GetRelationTo(MyAPIGateway.Session.Player.IdentityId) != MyRelationsBetweenPlayerAndBlock.Enemies
+                )
                 {
                     RemoveGPS(grid.EntityId);
                     continue;
@@ -98,7 +99,7 @@ namespace TargetLeading
                     continue;
                 }
 
-                Vector3D gridLoc = grid.PositionComp.GetPosition();
+                Vector3D gridLoc = grid.PositionComp.WorldAABB.Center;
                 float t = (float)(Vector3D.Distance(turretLoc, gridLoc) / speed);
 
                 DrawDot(grid.EntityId, (gridLoc + t * grid.Physics.LinearVelocity));
