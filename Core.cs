@@ -62,8 +62,6 @@ namespace TargetLeading
                 return;
             }
 
-            MyAPIGateway.Utilities.ShowNotification($"In Turret", 1);
-
             WasInTurretLastFrame = true;
             IMyGunObject<MyGunBase> gunBase = turret as IMyGunObject<MyGunBase>;
 
@@ -73,16 +71,11 @@ namespace TargetLeading
                 return;
             }
 
-            MyAPIGateway.Utilities.ShowNotification($"Has Ammo Definition", 1);
-
             Vector3D turretLoc = turret.GetPosition();
             float speed = gunBase.GunBase.CurrentAmmoDefinition.DesiredSpeed;
             float range = gunBase.GunBase.CurrentAmmoDefinition.MaxTrajectory;
             float rangeSquared = range * range;
             BoundingSphereD sphere = new BoundingSphereD(turretLoc, range);
-
-            MyAPIGateway.Utilities.ShowNotification($"Speed: {speed} Range: {range}", 1);
-
 
             foreach (IMyCubeGrid grid in Grids)
             {
@@ -96,18 +89,6 @@ namespace TargetLeading
                 }
 
                 bool isSubgrid = false;
-                //List<IMyCubeGrid> list = MyAPIGateway.GridGroups.GetGroup(grid, GridLinkTypeEnum.Physical);
-                //float gridVolume = grid.PositionComp.LocalAABB.Volume();
-
-                //foreach (IMyCubeGrid g in list)
-                //{
-                //    if (g.PositionComp.LocalAABB.Volume() > gridVolume)
-                //    {
-                //        RemoveGPS(grid.EntityId);
-                //        isSubgrid = true;
-                //        break;
-                //    }
-                //}
 
                 if (isSubgrid || grid.Physics == null)
                 {
