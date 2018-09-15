@@ -79,10 +79,12 @@ namespace TargetLeading
 
             foreach (IMyCubeGrid grid in Grids)
             {
+                IMyPlayer p = MyAPIGateway.Players.GetPlayerControllingEntity(grid);
+
                 if (grid.EntityId == turret.CubeGrid.EntityId
                 || Vector3D.DistanceSquared(grid.GetPosition(), turretLoc) > rangeSquared
-                || MyAPIGateway.Players.GetPlayerControllingEntity(grid) == null
-                )
+                || p == null
+                || p.GetRelationTo(MyAPIGateway.Session.Player.IdentityId) != MyRelationsBetweenPlayerAndBlock.Enemies)
                 {
                     RemoveGPS(grid.EntityId);
                     continue;
