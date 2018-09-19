@@ -80,6 +80,10 @@ namespace TargetLeading
             }
 
             Vector3D turretLoc = turret.GetPosition();
+            Vector3D turretDirn;
+            Vector3D.CreateFromAzimuthAndElevation(turret.Azimuth, turret.Elevation, out turretDirn);
+            Vector3D turretWorldDirection = Vector3D.TransformNormal(turretDirn, turret.WorldMatrix);
+
             float projectileSpeed = _gunBase.GunBase.CurrentAmmoDefinition.DesiredSpeed;
             float projectileRange = _gunBase.GunBase.CurrentAmmoDefinition.MaxTrajectory;
             float projectileRangeSquared = projectileRange * projectileRange;
@@ -97,9 +101,11 @@ namespace TargetLeading
 
                 if (grid.EntityId == turret.CubeGrid.EntityId
                     || Vector3D.DistanceSquared(gridLoc, turretLoc) > projectileRangeSquared
+                    || Vector3D.Dot(turretWorldDirection, gridLoc) < 0
                     || !GridHasHostileOwners(grid)
                     || p == null
-                    || p.GetRelationTo(MyAPIGateway.Session.Player.IdentityId) != MyRelationsBetweenPlayerAndBlock.Enemies)
+                    || p.GetRelationTo(MyAPIGateway.Session.Player.IdentityId) != MyRelationsBetweenPlayerAndBlock.Enemies
+                    )
                 {
                     RemoveGPS(grid.EntityId);
                     continue;
