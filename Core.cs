@@ -16,183 +16,134 @@ namespace TargetLeading
     [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
     public class Core : MySessionComponentBase
     {
-        private List<IMyCubeGrid> _grids = new List<IMyCubeGrid>();
-        private Dictionary<long, IMyGps> _gpsPoints = new Dictionary<long, IMyGps>();
-        private IMyGunObject<MyGunBase> _gunBase;
-        private bool _wasInTurretLastFrame = false;
+        private List<IMyCubeGrid> Grids = new List<IMyCubeGrid>();
+        private Dictionary<long, IMyGps> gpss = new Dictionary<long, IMyGps>();
+
+        private bool WasInTurretLastFrame = false;
+
 
         public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
         {
-            if (MyAPIGateway.Utilities.IsDedicated)
-                return;
-
             MyAPIGateway.Entities.OnEntityAdd += AddGrid;
             MyAPIGateway.Entities.OnEntityRemove += RemoveGrid;
         }
 
         protected override void UnloadData()
         {
-            if (MyAPIGateway.Utilities.IsDedicated)
-                return;
-
             MyAPIGateway.Entities.OnEntityAdd -= AddGrid;
             MyAPIGateway.Entities.OnEntityRemove -= RemoveGrid;
         }
 
         private void AddGrid(IMyEntity ent)
         {
-            var grid = ent as IMyCubeGrid;
-            if (grid != null)
+            if (ent is IMyCubeGrid)
             {
-                _grids.Add(grid);
+                Grids.Add(ent as IMyCubeGrid);
             }
         }
 
         private void RemoveGrid(IMyEntity ent)
         {
-            var grid = ent as IMyCubeGrid;
-            if (grid != null && _grids.Contains(grid))
+            if (ent is IMyCubeGrid && Grids.Contains(ent))
             {
-                _grids.Remove(grid);
+                Grids.Remove(ent as IMyCubeGrid);
             }
         }
 
         public override void UpdateBeforeSimulation()
         {
-            if (MyAPIGateway.Utilities.IsDedicated)
-                return;
+            if (MyAPIGateway.Utilities.IsDedicated) return;
 
             IMyLargeTurretBase turret = MyAPIGateway.Session?.Player?.Controller?.ControlledEntity?.Entity as IMyLargeTurretBase;
 
             if (turret == null)
             {
-                ClearGPS();
+                ClearGPSMarkers();
                 return;
             }
 
-            _wasInTurretLastFrame = true;
-            _gunBase = turret as IMyGunObject<MyGunBase>;
+            WasInTurretLastFrame = true;
+            IMyGunObject<MyGunBase> gunBase = turret as IMyGunObject<MyGunBase>;
 
-            if (_gunBase.GunBase.CurrentAmmoDefinition == null)
+            if (gunBase.GunBase.CurrentAmmoDefinition == null)
             {
-                ClearGPS();
+                ClearGPSMarkers();
                 return;
             }
 
-            Vector3D turretLoc = turret.GetPosition();
-            Vector3D turretDirn;
+            Vector3D turretLoc = turret.PositionComp.WorldAABB.Center;
+            Vector3D turretDirn; 
             Vector3D.CreateFromAzimuthAndElevation(turret.Azimuth, turret.Elevation, out turretDirn);
-            Vector3D turretWorldDirection = Vector3D.TransformNormal(turretDirn, turret.WorldMatrix);
+            Vector3D worldDirn = Vector3D.TransformNormal(turretDirn, turret.WorldMatrix);
 
-            float projectileSpeed = _gunBase.GunBase.CurrentAmmoDefinition.DesiredSpeed;
-            float projectileRange = _gunBase.GunBase.CurrentAmmoDefinition.MaxTrajectory;
-            float projectileRangeSquared = projectileRange * projectileRange;
+            float speed = gunBase.GunBase.CurrentAmmoDefinition.DesiredSpeed;
+            float range = gunBase.GunBase.CurrentAmmoDefinition.MaxTrajectory;
+            float rangeSquared = range * range;
+            BoundingSphereD sphere = new BoundingSphereD(turretLoc, range);
 
-            foreach (IMyCubeGrid grid in _grids)
+            foreach (IMyCubeGrid grid in Grids)
             {
-                if (grid.Physics == null)
-                {
-                    RemoveGPS(grid.EntityId);
-                    continue;
-                }
-
                 IMyPlayer p = MyAPIGateway.Players.GetPlayerControllingEntity(grid);
-                Vector3D gridLoc = grid.WorldAABB.Center;
+                Vector3D gridLoc = grid.PositionComp.WorldAABB.Center;
 
                 if (grid.EntityId == turret.CubeGrid.EntityId
-                    || Vector3D.DistanceSquared(gridLoc, turretLoc) > projectileRangeSquared
-                    || Vector3D.Dot(turretWorldDirection, gridLoc) < 0
-                    || !GridHasHostileOwners(grid)
-                    || p == null
-                    || p.GetRelationTo(MyAPIGateway.Session.Player.IdentityId) != MyRelationsBetweenPlayerAndBlock.Enemies
-                    )
+                || Vector3D.DistanceSquared(gridLoc, turretLoc) > rangeSquared
+                || Vector3D.Dot(worldDirn, gridLoc) < 0
+                || p == null
+                || p.GetRelationTo(MyAPIGateway.Session.Player.IdentityId) != MyRelationsBetweenPlayerAndBlock.Enemies
+                )
                 {
                     RemoveGPS(grid.EntityId);
                     continue;
                 }
 
-                Vector3D interceptPoint = CalculateProjectileIntercept(
-                    projectileSpeed,
-                    turret.CubeGrid.Physics.LinearVelocity,
-                    turretLoc,
-                    grid.Physics.LinearVelocity,
-                    gridLoc);
+                bool isSubgrid = false;
 
-                AddGPS(grid.EntityId, interceptPoint);
-            }
-        }
-
-        public static bool GridHasHostileOwners(IMyCubeGrid grid)
-        {
-            var gridOwners = grid.BigOwners;
-            foreach (var pid in gridOwners)
-            {
-                MyRelationsBetweenPlayerAndBlock relation = MyAPIGateway.Session.Player.GetRelationTo(pid);
-                if (relation == MyRelationsBetweenPlayerAndBlock.Enemies)
+                if (isSubgrid || grid.Physics == null)
                 {
-                    return true;
+                    RemoveGPS(grid.EntityId);
+                    continue;
                 }
+
+
+                float t = (float)(Vector3D.Distance(turretLoc, gridLoc) / speed);
+
+                DrawDot(grid.EntityId, (gridLoc + t * (grid.Physics.LinearVelocity - turret.CubeGrid.Physics.LinearVelocity)));
             }
-            return false;
         }
 
-        // Whip's CalculateProjectileIntercept Method v2
-        // Uses vector math as opposed to the quadratic equation
-        private static Vector3D CalculateProjectileIntercept(
-            double projectileSpeed,
-            Vector3D shooterVelocity,
-            Vector3D shooterPosition,
-            Vector3D targetVelocity,
-            Vector3D targetPos)
+        private void DrawDot(long gridId, Vector3D target)
         {
-            var directHeading = targetPos - shooterPosition;
-            var directHeadingNorm = Vector3D.Normalize(directHeading);
-
-            var relativeVelocity = targetVelocity - shooterVelocity;
-
-            var parallelVelocity = relativeVelocity.Dot(directHeadingNorm) * directHeadingNorm;
-            var normalVelocity = relativeVelocity - parallelVelocity;
-
-            var diff = projectileSpeed * projectileSpeed - normalVelocity.LengthSquared();
-            if (diff < 0)
-                return normalVelocity;
-
-            return Math.Sqrt(diff) * directHeadingNorm + normalVelocity;
-        }
-
-        private void AddGPS(long gridId, Vector3D target)
-        {
-            if (!_gpsPoints.ContainsKey(gridId))
+            if (!gpss.ContainsKey(gridId))
             {
-                _gpsPoints.Add(gridId, MyAPIGateway.Session.GPS.Create(gridId.ToString(), "", target, true));
-                MyAPIGateway.Session.GPS.AddLocalGps(_gpsPoints[gridId]);
+                gpss.Add(gridId, MyAPIGateway.Session.GPS.Create(gridId.ToString(), "", target, true));
+                MyAPIGateway.Session.GPS.AddLocalGps(gpss[gridId]);
                 MyVisualScriptLogicProvider.SetGPSColor(gridId.ToString(), Color.Orange);
-                _gpsPoints[gridId].Name = "";
+                gpss[gridId].Name = "";
             }
 
-            _gpsPoints[gridId].Coords = target;
+            gpss[gridId].Coords = target;
         }
 
-        private void ClearGPS()
+        private void ClearGPSMarkers()
         {
-            if (!_wasInTurretLastFrame)
-                return;
+            if (!WasInTurretLastFrame) return;
 
-            foreach (IMyGps gps in _gpsPoints.Values)
+            foreach (IMyGps gps in gpss.Values)
             {
                 MyAPIGateway.Session.GPS.RemoveLocalGps(gps);
             }
-            _gpsPoints.Clear();
+            gpss.Clear();
 
-            _wasInTurretLastFrame = false;
+            WasInTurretLastFrame = false;
         }
 
         private void RemoveGPS(long id)
         {
-            if (_gpsPoints.ContainsKey(id))
+            if (gpss.ContainsKey(id))
             {
-                MyAPIGateway.Session.GPS.RemoveLocalGps(_gpsPoints[id]);
-                _gpsPoints.Remove(id);
+                MyAPIGateway.Session.GPS.RemoveLocalGps(gpss[id]);
+                gpss.Remove(id);
             }
         }
     }
