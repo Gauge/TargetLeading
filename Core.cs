@@ -103,7 +103,7 @@ namespace TargetLeading
                     continue;
                 }
 
-                Vector3D interceptPoint = CalculateProjectileIntercept(
+                Vector3D interceptPoint = turretLoc + CalculateProjectileIntercept(
                     projectileSpeed,
                     turret.CubeGrid.Physics.LinearVelocity,
                     turretLoc,
