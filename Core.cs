@@ -103,12 +103,13 @@ namespace TargetLeading
                     continue;
                 }
 
-                Vector3D interceptPoint = turretLoc + CalculateProjectileIntercept(
+                Vector3D interceptPoint = CalculateProjectileInterceptPosition(
                     projectileSpeed,
                     turret.CubeGrid.Physics.LinearVelocity,
                     turretLoc,
                     grid.Physics.LinearVelocity,
-                    gridLoc);
+                    gridLoc,
+                    10);
 
                 AddGPS(grid.EntityId, interceptPoint);
             }
@@ -149,6 +150,35 @@ namespace TargetLeading
                 return normalVelocity;
 
             return Math.Sqrt(diff) * directHeadingNorm + normalVelocity;
+        }
+        
+        // Whip's CalculateProjectileInterceptPosition Method
+        // Uses vector math as opposed to the quadratic equation
+        private static Vector3D CalculateProjectileInterceptPosition(
+            double projectileSpeed,
+            Vector3D shooterVelocity,
+            Vector3D shooterPosition,
+            Vector3D targetVelocity,
+            Vector3D targetPos,
+            double interceptPointMultiplier = 1)
+        {
+            var directHeading = targetPos - shooterPosition;
+            var directHeadingNorm = Vector3D.Normalize(directHeading);
+
+            var relativeVelocity = targetVelocity - shooterVelocity;
+
+            var parallelVelocity = relativeVelocity.Dot(directHeadingNorm) * directHeadingNorm;
+            var normalVelocity = relativeVelocity - parallelVelocity;
+
+            var diff = projectileSpeed * projectileSpeed - normalVelocity.LengthSquared();
+            if (diff < 0)
+                return normalVelocity;
+            
+            var projectileForwardVelocity = Math.Sqrt(diff) * directHeadingNorm;
+            
+            var timeToIntercept = interceptPointMultiplier * Math.Abs(Vector3D.Dot(directHeading, directHeadingNorm)) / Vector3D.Dot(projectileForwardVelocity, directHeadingNorm);
+
+            return shooterPosition + timeToIntercept * (projectileForwardVelocity + normalVelocity);
         }
 
         private void AddGPS(long gridId, Vector3D target)
